@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="진료기록">
+<meta name="theme-color" content="#1565C0">
+<title>진료 전 증상 기록</title>
+
+<!-- PWA 매니페스트 인라인 -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22%EC%A7%84%EB%A3%8C+%EC%A0%84+%EC%A6%9D%EC%83%81+%EA%B8%B0%EB%A1%9D%22%2C%22short_name%22%3A%22%EC%A7%84%EB%A3%8C%EA%B8%B0%EB%A1%9D%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231565C0%22%2C%22theme_color%22%3A%22%231565C0%22%7D">
+
+<!-- 애플 홈 화면 아이콘 (SVG → 인라인) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231565C0'/%3E%3Ctext x='90' y='118' font-size='90' text-anchor='middle' fill='white'%3E%F0%9F%A9%BA%3C/text%3E%3C/svg%3E">
+
+<style>
+  /* ── 리셋 & 기본 ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #1565C0;
+    --blue-dark: #0D47A1;
+    --blue-light: #E3F2FD;
+    --blue-mid: #42A5F5;
+    --border: #BBDEFB;
+    --surface: #F0F4F8;
+    --text: #1A237E;
+    --body: #37474F;
+    --hint: #78909C;
+    --chip-text: #0C447C;
+    --green: #43A047;
+    --amber: #FFA726;
+    --red: #EF5350;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
+    background: var(--surface);
+    min-height: 100%;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── 화면 전환 ── */
+  .screen { display: none; flex-direction: column; min-height: 100vh; }
+  .screen.active { display: flex; }
+
+  /* ── 공통 헤더 ── */
+  .topbar {
+    background: var(--blue);
+    padding: calc(var(--safe-top) + 14px) 16px 14px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-row { display: flex; align-items: center; gap: 10px; }
+  .topbar h1 { color: #fff; font-size: 17px; font-weight: 500; flex: 1; }
+  .topbar-back {
+    background: none; border: none; color: #fff;
+    font-size: 22px; cursor: pointer; padding: 4px; line-height: 1;
+  }
+  .topbar-badge {
+    background: rgba(255,255,255,0.2); color: #fff;
+    font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  }
+
+  /* ── 스크롤 영역 ── */
+  .scroll-body {
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 12px 16px calc(var(--safe-bottom) + 90px);
+  }
+
+  /* ── 카드 ── */
+  .card {
+    background: #fff; border-radius: 12px;
+    border: 0.5px solid var(--border); padding: 16px;
+    margin-bottom: 10px;
+  }
+  .card-label {
+    font-size: 11px; font-weight: 600; color: var(--blue);
+    letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;
+    margin-bottom: 12px;
+  }
+  .required-dot {
+    width: 6px; height: 6px; background: var(--red);
+    border-radius: 50%; display: inline-block;
+  }
+
+  /* ── 버튼 그리드 ── */
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sel-btn {
+    padding: 10px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; color: var(--body); cursor: pointer;
+    text-align: center; transition: all .15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  .sel-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  /* ── 빈도 버튼 ── */
+  .freq-row { display: flex; gap: 6px; }
+  .freq-btn {
+    flex: 1; padding: 9px 4px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 12px; color: var(--body); cursor: pointer;
+    text-align: center; font-family: inherit; -webkit-appearance: none; appearance: none;
+  }
+  .freq-btn.active { background: var(--blue-light); border-color: var(--blue); color: var(--blue); }
+
+  /* ── 칩 ── */
+  .chips-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip-btn {
+    padding: 7px 13px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; color: var(--body); cursor: pointer;
+    font-family: inherit; -webkit-appearance: none; appearance: none;
+  }
+  .chip-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  /* ── 슬라이더 ── */
+  .score-display { text-align: center; margin-bottom: 12px; }
+  .score-emoji { font-size: 32px; }
+  .score-num { font-size: 38px; font-weight: 500; line-height: 1.1; }
+  .score-desc { font-size: 12px; color: var(--hint); margin-top: 2px; }
+  input[type=range] {
+    width: 100%; -webkit-appearance: none; appearance: none; height: 6px;
+    border-radius: 3px; background: var(--border); outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 26px; height: 26px;
+    border-radius: 50%; background: #fff;
+    border: 2px solid var(--blue);
+    box-shadow: 0 1px 4px rgba(21,101,192,.25);
+    cursor: pointer;
+  }
+  .faces-row { display: flex; justify-content: space-evenly; margin-top: 10px; }
+  .face { font-size: 22px; opacity: .3; transition: all .2s; }
+  .face.active { opacity: 1; transform: scale(1.3); }
+
+  /* ── 텍스트 입력 ── */
+  input[type=text], textarea {
+    width: 100%; padding: 10px 13px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); font-size: 14px;
+    color: var(--body); font-family: inherit; outline: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  input[type=text]:focus, textarea:focus {
+    border-color: var(--blue); background: #fff;
+  }
+  textarea { resize: none; height: 88px; line-height: 1.6; }
+
+  /* ── 메인 버튼 ── */
+  .btn-primary {
+    width: 100%; padding: 15px; background: var(--blue);
+    color: #fff; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 500; cursor: pointer;
+    font-family: inherit; -webkit-appearance: none; appearance: none;
+    margin-top: 8px;
+  }
+  .btn-primary:active { opacity: .85; }
+  .btn-secondary {
+    width: 100%; padding: 14px; background: #fff;
+    color: var(--blue); border: 1px solid var(--border);
+    border-radius: 12px; font-size: 15px; font-weight: 500;
+    cursor: pointer; font-family: inherit; margin-top: 10px;
+  }
+
+  /* ── 진행 바 ── */
+  .progress-bar { height: 4px; background: var(--border); }
+  .progress-fill { height: 4px; background: var(--blue-mid); transition: width .3s; }
+
+  /* ── 홈 통계 배너 ── */
+  .stat-banner {
+    background: var(--blue); padding: 0 16px 16px;
+    display: flex; gap: 8px;
+  }
+  .stat-pill {
+    flex: 1; background: rgba(255,255,255,.15);
+    border-radius: 10px; padding: 8px 10px;
+  }
+  .stat-pill-label { color: #BBDEFB; font-size: 10px; margin-bottom: 3px; }
+  .stat-pill-val { color: #fff; font-size: 13px; font-weight: 500; }
+
+  /* ── 기록 카드 (홈) ── */
+  .rec-card {
+    background: #fff; border-radius: 12px;
+    border: 0.5px solid var(--border); padding: 14px 16px;
+    margin-bottom: 10px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rec-card:active { opacity: .85; }
+  .rec-top { display: flex; align-items: center; margin-bottom: 9px; }
+  .rec-date { font-size: 12px; color: var(--hint); flex: 1; }
+  .score-badge {
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500;
+  }
+  .rec-mid { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+  .part-icon {
+    width: 40px; height: 40px; background: var(--blue-light);
+    border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; font-size: 20px; flex-shrink: 0;
+  }
+  .rec-part { font-size: 16px; font-weight: 500; color: var(--text); }
+  .rec-meta { font-size: 12px; color: var(--hint); margin-top: 2px; }
+  .mini-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+  .mini-chip {
+    padding: 3px 9px; background: var(--blue-light);
+    border-radius: 12px; font-size: 11px; color: var(--chip-text);
+    border: 0.5px solid var(--border);
+  }
+  .rec-memo {
+    border-left: 2px solid var(--border); padding-left: 10px;
+    font-size: 12px; color: var(--body); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .swipe-hint { font-size: 10px; color: #BBDEFB; text-align: right; margin-top: 6px; }
+
+  /* ── 빈 상태 ── */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 40px; text-align: center;
+  }
+  .empty-icon {
+    width: 80px; height: 80px; background: var(--blue-light);
+    border-radius: 20px; font-size: 40px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .empty-title { font-size: 16px; font-weight: 500; color: var(--text); margin-bottom: 8px; }
+  .empty-desc { font-size: 13px; color: var(--hint); line-height: 1.65; }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed;
+    bottom: calc(var(--safe-bottom) + 20px);
+    right: 20px;
+    background: var(--blue); color: #fff;
+    border: none; border-radius: 28px;
+    padding: 14px 20px; font-size: 15px; font-weight: 500;
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 16px rgba(21,101,192,.35);
+    display: flex; align-items: center; gap: 8px;
+    z-index: 100;
+  }
+  .fab:active { opacity: .85; }
+
+  /* ── 요약 화면 ── */
+  .summary-patient { background: var(--blue); padding: 0 20px 18px; }
+  .summary-patient-name { color: #fff; font-size: 22px; font-weight: 500; }
+  .summary-patient-meta { color: #BBDEFB; font-size: 13px; margin-top: 3px; }
+  .timestamp-bar {
+    background: var(--blue-light); margin: 12px 16px 0;
+    border-radius: 8px; padding: 9px 14px;
+    font-size: 12px; color: var(--chip-text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .soap-card {
+    background: #fff; margin: 0 16px; border-radius: 12px;
+    border: 0.5px solid var(--border); overflow: hidden;
+  }
+  .soap-header {
+    background: var(--blue); padding: 12px 16px;
+    color: #fff; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .soap-body { padding: 14px; }
+  .soap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .soap-item {
+    background: var(--surface); border-radius: 8px; padding: 10px 12px;
+  }
+  .soap-item.full { grid-column: 1 / -1; }
+  .soap-item-label {
+    font-size: 10px; color: var(--hint); font-weight: 600;
+    letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .soap-item-val { font-size: 14px; color: var(--text); font-weight: 500; }
+  .nrs-card {
+    background: #fff; margin: 0 16px; border-radius: 12px;
+    border: 0.5px solid var(--border); padding: 16px;
+  }
+  .nrs-row { display: flex; align-items: center; gap: 14px; }
+  .nrs-circle {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; border-width: 2px; border-style: solid;
+  }
+  .nrs-circle-num { font-size: 24px; font-weight: 500; }
+  .nrs-label { font-size: 15px; font-weight: 500; color: var(--text); }
+  .nrs-sub { font-size: 12px; color: var(--hint); margin-top: 3px; }
+  .nrs-bar-wrap {
+    margin-top: 12px; height: 7px; background: #E3F0FF; border-radius: 4px;
+  }
+  .nrs-bar { height: 7px; border-radius: 4px; }
+  .memo-card {
+    background: #fff; margin: 0 16px; border-radius: 12px;
+    border: 0.5px solid var(--border); padding: 16px;
+  }
+  .memo-inner-label {
+    font-size: 11px; color: var(--hint); font-weight: 500;
+    letter-spacing: 0.4px; margin-bottom: 10px;
+  }
+  .memo-body {
+    border-left: 3px solid var(--border); padding-left: 12px;
+    font-size: 14px; color: var(--body); line-height: 1.65;
+  }
+  .raw-box {
+    background: #fff; border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 13px 14px;
+    font-size: 12px; color: var(--body);
+    font-family: 'Courier New', monospace; line-height: 1.8;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .raw-label {
+    font-size: 11px; color: var(--hint); font-weight: 500;
+    margin-bottom: 7px; letter-spacing: 0.4px;
+  }
+  .sec-label {
+    font-size: 11px; font-weight: 600; color: var(--blue);
+    letter-spacing: 0.8px; padding: 16px 16px 8px;
+  }
+  .divider { height: 0.5px; background: var(--border); margin: 16px 16px 0; }
+
+  /* ── 토스트 ── */
+  .toast {
+    position: fixed; bottom: calc(var(--safe-bottom) + 90px);
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1A237E; color: #fff; padding: 11px 22px;
+    border-radius: 24px; font-size: 14px; font-weight: 500;
+    opacity: 0; transition: all .3s; z-index: 999;
+    white-space: nowrap; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── 삭제 확인 ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 200;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-sheet {
+    background: #fff; border-radius: 20px 20px 0 0;
+    padding: 24px 20px calc(var(--safe-bottom) + 24px);
+    width: 100%; max-width: 480px;
+  }
+  .modal-title { font-size: 17px; font-weight: 500; color: var(--text); margin-bottom: 8px; }
+  .modal-desc { font-size: 14px; color: var(--hint); margin-bottom: 20px; line-height: 1.5; }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-cancel {
+    flex: 1; padding: 13px; border: 1px solid var(--border);
+    border-radius: 10px; background: #fff; font-size: 15px;
+    font-family: inherit; cursor: pointer; color: var(--body);
+  }
+  .modal-delete {
+    flex: 1; padding: 13px; border: none;
+    border-radius: 10px; background: var(--red);
+    font-size: 15px; font-family: inherit;
+    cursor: pointer; color: #fff; font-weight: 500;
+  }
+
+  /* ── PWA 설치 배너 (Safari 전용) ── */
+  .install-banner {
+    background: var(--blue-light); border-top: 1px solid var(--border);
+    padding: 12px 16px; display: none;
+    align-items: center; gap: 10px;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  }
+  .install-banner.show { display: flex; }
+  .install-text { font-size: 12px; color: var(--chip-text); flex: 1; line-height: 1.5; }
+  .install-close {
+    background: none; border: none; font-size: 18px;
+    color: var(--hint); cursor: pointer; padding: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     화면 1: 홈 (기록 목록)
+══════════════════════════════════════════════ -->
+<div class="screen active" id="screen-home">
+  <div class="topbar">
+    <div class="topbar-row">
+      <span style="font-size:20px">🏥</span>
+      <h1>진료 전 증상 기록</h1>
+      <button class="topbar-back" id="btn-more" aria-label="더보기" style="font-size:18px">⋮</button>
+    </div>
+  </div>
+
+  <!-- 통계 배너 -->
+  <div class="stat-banner" id="stat-banner" style="display:none">
+    <div class="stat-pill">
+      <div class="stat-pill-label">📁 총 기록</div>
+      <div class="stat-pill-val" id="stat-count">0건</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-pill-label">📊 평균 통증</div>
+      <div class="stat-pill-val" id="stat-avg">NRS —</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-pill-label">🕐 최근 기록</div>
+      <div class="stat-pill-val" id="stat-recent">—</div>
+    </div>
+  </div>
+
+  <!-- 기록 리스트 -->
+  <div class="scroll-body" id="home-list-wrap">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">아직 기록된 증상이 없어요</div>
+      <div class="empty-desc">진료 전에 증상을 미리 기록해 두면<br>의사 선생님께 정확하게 전달할 수 있어요.</div>
+    </div>
+    <div id="record-list"></div>
+  </div>
+
+  <button class="fab" id="btn-new-record">＋ 새 증상 기록</button>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     화면 2: 증상 입력 폼
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-form">
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="topbar-back" id="btn-form-back" aria-label="뒤로가기">‹</button>
+      <h1>증상 기록하기</h1>
+      <span class="topbar-badge" id="form-step">1 / 5</span>
+    </div>
+    <div class="progress-bar" style="margin: 10px -16px -14px">
+      <div class="progress-fill" id="progress-fill" style="width:20%"></div>
+    </div>
+  </div>
+
+  <div class="scroll-body" id="form-scroll">
+
+    <!-- 1. 아픈 부위 -->
+    <div class="card">
+      <div class="card-label">📍 1. 제일 아픈 부위 <span class="required-dot"></span></div>
+      <div class="btn-grid" id="body-grid">
+        <button class="sel-btn" data-v="머리 / 두통">머리 / 두통</button>
+        <button class="sel-btn" data-v="목 / 어깨">목 / 어깨</button>
+        <button class="sel-btn" data-v="가슴">가슴</button>
+        <button class="sel-btn" data-v="배 / 복부">배 / 복부</button>
+        <button class="sel-btn" data-v="허리">허리</button>
+        <button class="sel-btn" data-v="팔 / 손">팔 / 손</button>
+        <button class="sel-btn" data-v="다리 / 발">다리 / 발</button>
+        <button class="sel-btn" data-v="기타 부위">기타 부위</button>
+      </div>
+    </div>
+
+    <!-- 2. 시작 시기 & 빈도 -->
+    <div class="card">
+      <div class="card-label">📅 2. 증상 시작 시기 및 빈도</div>
+      <input type="text" id="onset-input" placeholder="약 언제부터? (예: 3일 전, 2주 전)" autocomplete="off">
+      <div style="margin-top:10px;margin-bottom:6px;font-size:12px;color:var(--hint)">증상 빈도</div>
+      <div class="freq-row" id="freq-row">
+        <button class="freq-btn active" data-v="항상">항상</button>
+        <button class="freq-btn" data-v="자주">자주</button>
+        <button class="freq-btn" data-v="가끔">가끔</button>
+        <button class="freq-btn" data-v="드물게">드물게</button>
+      </div>
+    </div>
+
+    <!-- 3. 통증 양상 -->
+    <div class="card">
+      <div class="card-label">📈 3. 통증의 양상 <span style="font-size:10px;color:var(--hint);font-weight:400">(복수 선택)</span></div>
+      <div class="chips-wrap" id="pain-chips">
+        <button class="chip-btn" data-v="찌르듯이">찌르듯이</button>
+        <button class="chip-btn" data-v="묵직하게">묵직하게</button>
+        <button class="chip-btn" data-v="쑤시듯이">쑤시듯이</button>
+        <button class="chip-btn" data-v="타는 듯이">타는 듯이</button>
+        <button class="chip-btn" data-v="저릿저릿">저릿저릿</button>
+        <button class="chip-btn" data-v="두근거림">두근거림</button>
+        <button class="chip-btn" data-v="욱신욱신">욱신욱신</button>
+        <button class="chip-btn" data-v="뻐근하게">뻐근하게</button>
+      </div>
+    </div>
+
+    <!-- 4. 통증 점수 -->
+    <div class="card">
+      <div class="card-label">📊 4. 통증 점수 (NRS)</div>
+      <div class="score-display">
+        <div class="score-emoji" id="score-emoji">😐</div>
+        <div class="score-num" id="score-num" style="color:var(--amber)">5</div>
+        <div class="score-desc" id="score-desc">중등도 통증</div>
+      </div>
+      <input type="range" min="1" max="10" value="5" step="1" id="pain-slider">
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;color:var(--hint)">1  거의 없음</span>
+        <span style="font-size:10px;color:var(--hint)">10  매우 심함</span>
+      </div>
+      <div class="faces-row" id="faces-row">
+        <span class="face">😊</span><span class="face">🙂</span>
+        <span class="face active">😐</span>
+        <span class="face">😟</span><span class="face">😣</span>
+      </div>
+    </div>
+
+    <!-- 5. 기타 메모 -->
+    <div class="card">
+      <div class="card-label">📝 5. 기타 메모</div>
+      <textarea id="memo-input" placeholder="의사 선생님께 꼭 전하고 싶은 내용을 적어 주세요.&#10;예: 특정 자세에서 더 아픔, 밤에 심해짐 등"></textarea>
+    </div>
+
+    <button class="btn-primary" id="btn-save">✓ 증상 기록 저장하기</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     화면 3: 의사용 요약
+══════════════════════════════════════════════ -->
+<div class="screen" id="screen-summary">
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="topbar-back" id="btn-summary-back" aria-label="뒤로가기">‹</button>
+      <h1>의사용 진료 요약</h1>
+      <span class="topbar-badge">For Doctor</span>
+    </div>
+  </div>
+
+  <div class="scroll-body">
+    <!-- 환자 헤더 -->
+    <div class="summary-patient" id="summary-patient-header" style="margin-top:-12px;padding-top:12px">
+      <div class="summary-patient-name" id="summary-date-title">기록 요약</div>
+      <div class="summary-patient-meta" id="summary-sub-meta">진료 전 작성</div>
+    </div>
+
+    <div class="timestamp-bar" id="summary-timestamp">
+      🕐 <span id="summary-ts-text">기록 작성 시각</span>
+    </div>
+
+    <div class="sec-label">주요 증상 요약 (SOAP)</div>
+    <div class="soap-card">
+      <div class="soap-header">📋 Chief Complaint &amp; Clinical Summary</div>
+      <div class="soap-body">
+        <div class="soap-grid">
+          <div class="soap-item">
+            <div class="soap-item-label">CC · 주소증</div>
+            <div class="soap-item-val" id="s-body"></div>
+          </div>
+          <div class="soap-item">
+            <div class="soap-item-label">Onset · 발병일</div>
+            <div class="soap-item-val" id="s-onset"></div>
+          </div>
+          <div class="soap-item">
+            <div class="soap-item-label">Frequency · 빈도</div>
+            <div class="soap-item-val" id="s-freq"></div>
+          </div>
+          <div class="soap-item">
+            <div class="soap-item-label">Record · 작성일시</div>
+            <div class="soap-item-val" id="s-date"></div>
+          </div>
+          <div class="soap-item full">
+            <div class="soap-item-label">Character · 통증 양상</div>
+            <div class="chips-wrap" id="s-chars" style="margin-top:6px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-label">통증 척도 (NRS)</div>
+    <div class="nrs-card">
+      <div class="nrs-row">
+        <div class="nrs-circle" id="s-nrs-circle">
+          <span class="nrs-circle-num" id="s-nrs-num"></span>
+        </div>
+        <div>
+          <div class="nrs-label" id="s-nrs-label"></div>
+          <div class="nrs-sub" id="s-nrs-sub"></div>
+        </div>
+      </div>
+      <div class="nrs-bar-wrap" style="margin-top:14px">
+        <div class="nrs-bar" id="s-nrs-bar"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px">
+        <span style="font-size:10px;color:var(--hint)">0  없음</span>
+        <span style="font-size:10px;color:var(--hint)">10  극심</span>
+      </div>
+    </div>
+
+    <div class="sec-label">추가 메모 (Patient Note)</div>
+    <div class="memo-card">
+      <div class="memo-inner-label">📝 환자 직접 기술</div>
+      <div class="memo-body" id="s-memo"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="padding:16px 16px 0">
+      <div class="raw-label">📄 복사용 텍스트 미리보기</div>
+      <div class="raw-box" id="s-raw"></div>
+    </div>
+
+    <div style="padding:16px">
+      <button class="btn-primary" id="btn-copy">📋 텍스트 복사하기</button>
+      <button class="btn-secondary" id="btn-share">↗ 공유하기 (카카오톡 · 문자)</button>
+      <div style="height:10px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     삭제 확인 모달
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">기록 삭제</div>
+    <div class="modal-desc" id="modal-desc">이 기록을 삭제하시겠습니까?</div>
+    <div class="modal-btns">
+      <button class="modal-cancel" id="modal-cancel">취소</button>
+      <button class="modal-delete" id="modal-confirm">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<!-- PWA 설치 안내 배너 -->
+<div class="install-banner" id="install-banner">
+  <span style="font-size:20px">📲</span>
+  <div class="install-text">
+    <strong>홈 화면에 추가</strong>하면 앱처럼 사용할 수 있어요.<br>
+    Safari 하단 공유 버튼 → "홈 화면에 추가"
+  </div>
+  <button class="install-close" id="install-close" aria-label="닫기">✕</button>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  데이터 레이어 (localStorage)
+// ══════════════════════════════════════════════
+const DB = {
+  KEY: 'symptom_records_v1',
+  load() {
+    try { return JSON.parse(localStorage.getItem(this.KEY) || '[]'); }
+    catch { return []; }
+  },
+  save(records) {
+    localStorage.setItem(this.KEY, JSON.stringify(records));
+  },
+  add(record) {
+    const all = this.load();
+    all.unshift(record); // 최신순 = 앞에 추가
+    this.save(all);
+  },
+  delete(id) {
+    const all = this.load().filter(r => r.id !== id);
+    this.save(all);
+  },
+  getById(id) {
+    return this.load().find(r => r.id === id);
+  }
+};
+
+// ══════════════════════════════════════════════
+//  화면 전환
+// ══════════════════════════════════════════════
+let currentSummaryId = null;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ══════════════════════════════════════════════
+//  홈 화면 렌더링
+// ══════════════════════════════════════════════
+function renderHome() {
+  const records = DB.load();
+  const list = document.getElementById('record-list');
+  const empty = document.getElementById('empty-state');
+  const banner = document.getElementById('stat-banner');
+
+  if (records.length === 0) {
+    empty.style.display = 'flex';
+    list.innerHTML = '';
+    banner.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  banner.style.display = 'flex';
+
+  // 통계
+  const avg = (records.reduce((s, r) => s + r.painScore, 0) / records.length).toFixed(1);
+  document.getElementById('stat-count').textContent = records.length + '건';
+  document.getElementById('stat-avg').textContent = 'NRS ' + avg;
+  document.getElementById('stat-recent').textContent = timeAgo(records[0].createdAt);
+
+  // 리스트
+  list.innerHTML = records.map(r => `
+    <div class="rec-card" data-id="${r.id}">
+      <div class="rec-top">
+        <span class="rec-date">🕐 ${fmtDate(r.createdAt)}</span>
+        <span class="score-badge" style="${scoreBadgeStyle(r.painScore)}">NRS ${r.painScore} ${scoreLabel(r.painScore)}</span>
+      </div>
+      <div class="rec-mid">
+        <div class="part-icon">📍</div>
+        <div style="flex:1">
+          <div class="rec-part">${r.bodyPart}</div>
+          <div class="rec-meta">${r.onset || '—'}  ·  ${r.frequency}</div>
+        </div>
+        <span style="color:var(--hint);font-size:18px">›</span>
+      </div>
+      ${r.painTypes.length ? `<div class="mini-chips">${r.painTypes.map(t => `<span class="mini-chip">${t}</span>`).join('')}</div>` : ''}
+      ${r.memo ? `<div class="rec-memo">${r.memo}</div>` : ''}
+      <div class="swipe-hint">길게 누르면 삭제</div>
+    </div>
+  `).join('');
+
+  // 이벤트: 탭 → 요약, 길게 누르기 → 삭제
+  list.querySelectorAll('.rec-card').forEach(card => {
+    const id = card.dataset.id;
+    let pressTimer;
+
+    card.addEventListener('click', () => openSummary(id));
+
+    card.addEventListener('touchstart', () => {
+      pressTimer = setTimeout(() => confirmDelete(id, card.querySelector('.rec-part').textContent), 600);
+    }, { passive: true });
+    card.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
+    card.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
+  });
+}
+
+// ══════════════════════════════════════════════
+//  요약 화면
+// ══════════════════════════════════════════════
+function openSummary(id) {
+  const r = DB.getById(id);
+  if (!r) return;
+  currentSummaryId = id;
+
+  document.getElementById('summary-date-title').textContent = fmtDateShort(r.createdAt) + ' 기록';
+  document.getElementById('summary-sub-meta').textContent = '진료 전 작성  ·  ' + r.bodyPart;
+  document.getElementById('summary-ts-text').textContent = '기록 작성: ' + fmtDate(r.createdAt);
+
+  document.getElementById('s-body').textContent = r.bodyPart;
+  document.getElementById('s-onset').textContent = r.onset || '—';
+  document.getElementById('s-freq').textContent = r.frequency;
+  document.getElementById('s-date').textContent = fmtDateShort(r.createdAt);
+
+  const charsEl = document.getElementById('s-chars');
+  charsEl.innerHTML = r.painTypes.length
+    ? r.painTypes.map(t => `<span class="mini-chip">${t}</span>`).join('')
+    : '<span style="font-size:13px;color:var(--hint)">미선택</span>';
+
+  const color = scoreColor(r.painScore);
+  const circle = document.getElementById('s-nrs-circle');
+  circle.style.borderColor = color;
+  circle.style.background = color + '1a';
+  document.getElementById('s-nrs-num').textContent = r.painScore;
+  document.getElementById('s-nrs-num').style.color = color;
+  document.getElementById('s-nrs-label').textContent = scoreLabel(r.painScore);
+  document.getElementById('s-nrs-sub').textContent =
+    `NRS ${r.painScore} / 10  ·  ${r.painScore >= 7 ? '일상생활 지장 있음' : r.painScore >= 4 ? '불편함 호소' : '경미한 수준'}`;
+  const bar = document.getElementById('s-nrs-bar');
+  bar.style.width = (r.painScore / 10 * 100) + '%';
+  bar.style.background = color;
+
+  document.getElementById('s-memo').textContent = r.memo || '(추가 메모 없음)';
+  document.getElementById('s-raw').textContent = buildPlainText(r);
+
+  showScreen('summary');
+}
+
+function buildPlainText(r) {
+  return `[진료 전 증상 요약]
+CC: ${r.bodyPart}
+Onset: ${r.onset || '—'}
+Frequency: ${r.frequency}
+Character: ${r.painTypes.join(', ') || '미선택'}
+NRS Score: ${r.painScore} / 10 (${scoreLabel(r.painScore)})
+
+[환자 메모]
+${r.memo || '(없음)'}
+
+기록일시: ${fmtDate(r.createdAt)}`;
+}
+
+// ══════════════════════════════════════════════
+//  폼 상태
+// ══════════════════════════════════════════════
+let formState = {
+  bodyPart: '',
+  onset: '',
+  frequency: '항상',
+  painTypes: [],
+  painScore: 5,
+  memo: ''
+};
+
+const scoreEmojis = ['','😊','🙂','😶','😐','😟','😟','😣','😣','😣','😖'];
+const scoreDescs  = ['','거의 없음','아주 약함','약간 불편','중등도','중등도','다소 심함','심함','매우 심함','극심','참을 수 없음'];
+
+function scoreLabel(s) {
+  if (s <= 2) return '경미';
+  if (s <= 4) return '약함';
+  if (s <= 6) return '중등도';
+  if (s <= 8) return '심함';
+  return '극심';
+}
+function scoreColor(s) {
+  if (s <= 3) return '#43A047';
+  if (s <= 6) return '#FFA726';
+  return '#EF5350';
+}
+function scoreBadgeStyle(s) {
+  const c = scoreColor(s);
+  return `background:${c}1a;color:${c};border:0.5px solid ${c}44`;
+}
+
+function updateSlider() {
+  const v = formState.painScore;
+  const sl = document.getElementById('pain-slider');
+  const pct = ((v - 1) / 9 * 100);
+  sl.style.background = `linear-gradient(to right, var(--blue) ${pct}%, var(--border) ${pct}%)`;
+  document.getElementById('score-emoji').textContent = scoreEmojis[v];
+  document.getElementById('score-num').textContent = v;
+  document.getElementById('score-num').style.color = scoreColor(v);
+  document.getElementById('score-desc').textContent = scoreDescs[v];
+  const fi = Math.round((v - 1) / 2.25);
+  document.querySelectorAll('#faces-row .face').forEach((f, i) =>
+    f.classList.toggle('active', i === Math.min(fi, 4)));
+}
+
+function updateProgress() {
+  let filled = 0;
+  if (formState.bodyPart) filled++;
+  if (formState.onset || formState.frequency) filled++;
+  if (formState.painTypes.length) filled++;
+  filled += 2;
+  const pct = Math.round(filled / 5 * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('form-step').textContent = Math.min(filled, 5) + ' / 5';
+}
+
+function resetForm() {
+  formState = { bodyPart:'', onset:'', frequency:'항상', painTypes:[], painScore:5, memo:'' };
+  document.querySelectorAll('#body-grid .sel-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('onset-input').value = '';
+  document.querySelectorAll('#freq-row .freq-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.v === '항상'));
+  document.querySelectorAll('#pain-chips .chip-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pain-slider').value = 5;
+  document.getElementById('memo-input').value = '';
+  updateSlider();
+  updateProgress();
+}
+
+// ══════════════════════════════════════════════
+//  저장
+// ══════════════════════════════════════════════
+function saveRecord() {
+  if (!formState.bodyPart) {
+    showToast('⚠️ 아픈 부위를 선택해 주세요.');
+    document.getElementById('form-scroll').scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  formState.onset = document.getElementById('onset-input').value.trim();
+  formState.memo  = document.getElementById('memo-input').value.trim();
+
+  const record = {
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    bodyPart: formState.bodyPart,
+    onset: formState.onset,
+    frequency: formState.frequency,
+    painTypes: [...formState.painTypes],
+    painScore: formState.painScore,
+    memo: formState.memo
+  };
+
+  DB.add(record);
+  showToast('✅ 기록이 저장되었습니다!');
+  resetForm();
+  renderHome();
+  showScreen('home');
+}
+
+// ══════════════════════════════════════════════
+//  삭제
+// ══════════════════════════════════════════════
+let pendingDeleteId = null;
+
+function confirmDelete(id, partName) {
+  pendingDeleteId = id;
+  document.getElementById('modal-desc').textContent =
+    `"${partName}" 기록을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`;
+  document.getElementById('delete-modal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+//  복사 / 공유
+// ══════════════════════════════════════════════
+function copyText() {
+  const r = DB.getById(currentSummaryId);
+  if (!r) return;
+  const text = buildPlainText(r);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('📋 텍스트가 복사되었습니다!'))
+      .catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); showToast('📋 텍스트가 복사되었습니다!'); }
+  catch { showToast('복사에 실패했습니다. 텍스트를 직접 선택하세요.'); }
+  document.body.removeChild(ta);
+}
+
+function shareText() {
+  const r = DB.getById(currentSummaryId);
+  if (!r) return;
+  const text = buildPlainText(r);
+  if (navigator.share) {
+    navigator.share({ title: '진료 전 증상 요약', text })
+      .catch(() => {});
+  } else {
+    copyText();
+    showToast('📋 공유 대신 클립보드에 복사했습니다.');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  유틸
+// ══════════════════════════════════════════════
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const h = d.getHours() < 12 ? '오전' : '오후';
+  const hh = d.getHours() % 12 || 12;
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}  ${h} ${hh}:${mm}`;
+}
+function fmtDateShort(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+function pad(n) { return String(n).padStart(2, '0'); }
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return '방금 전';
+  if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+  if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+  return Math.floor(diff / 86400) + '일 전';
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ══════════════════════════════════════════════
+//  이벤트 바인딩
+// ══════════════════════════════════════════════
+// 홈
+document.getElementById('btn-new-record').addEventListener('click', () => {
+  resetForm();
+  showScreen('form');
+});
+document.getElementById('btn-more').addEventListener('click', () => {
+  if (DB.load().length === 0) { showToast('삭제할 기록이 없습니다.'); return; }
+  pendingDeleteId = '__ALL__';
+  document.getElementById('modal-desc').textContent = '모든 기록을 삭제합니다. 계속하시겠습니까?';
+  document.getElementById('delete-modal').classList.add('open');
+});
+
+// 폼 뒤로
+document.getElementById('btn-form-back').addEventListener('click', () => showScreen('home'));
+
+// 아픈 부위
+document.getElementById('body-grid').addEventListener('click', e => {
+  const btn = e.target.closest('.sel-btn');
+  if (!btn) return;
+  document.querySelectorAll('#body-grid .sel-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  formState.bodyPart = btn.dataset.v;
+  updateProgress();
+});
+
+// 발병일 입력
+document.getElementById('onset-input').addEventListener('input', updateProgress);
+
+// 빈도
+document.getElementById('freq-row').addEventListener('click', e => {
+  const btn = e.target.closest('.freq-btn');
+  if (!btn) return;
+  document.querySelectorAll('#freq-row .freq-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  formState.frequency = btn.dataset.v;
+  updateProgress();
+});
+
+// 통증 양상
+document.getElementById('pain-chips').addEventListener('click', e => {
+  const btn = e.target.closest('.chip-btn');
+  if (!btn) return;
+  btn.classList.toggle('active');
+  const v = btn.dataset.v;
+  if (formState.painTypes.includes(v)) {
+    formState.painTypes = formState.painTypes.filter(t => t !== v);
+  } else {
+    formState.painTypes.push(v);
+  }
+  updateProgress();
+});
+
+// 슬라이더
+document.getElementById('pain-slider').addEventListener('input', e => {
+  formState.painScore = parseInt(e.target.value);
+  updateSlider();
+});
+
+// 저장
+document.getElementById('btn-save').addEventListener('click', saveRecord);
+
+// 요약 뒤로
+document.getElementById('btn-summary-back').addEventListener('click', () => showScreen('home'));
+
+// 복사/공유
+document.getElementById('btn-copy').addEventListener('click', copyText);
+document.getElementById('btn-share').addEventListener('click', shareText);
+
+// 모달
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('delete-modal').classList.remove('open');
+  pendingDeleteId = null;
+});
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  if (pendingDeleteId === '__ALL__') {
+    DB.save([]);
+    showToast('🗑️ 전체 기록이 삭제되었습니다.');
+  } else if (pendingDeleteId) {
+    DB.delete(pendingDeleteId);
+    showToast('🗑️ 기록이 삭제되었습니다.');
+  }
+  document.getElementById('delete-modal').classList.remove('open');
+  pendingDeleteId = null;
+  renderHome();
+});
+
+// ══════════════════════════════════════════════
+//  PWA 설치 배너 (iOS Safari)
+// ══════════════════════════════════════════════
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+function isInStandaloneMode() {
+  return ('standalone' in navigator && navigator.standalone) ||
+    window.matchMedia('(display-mode: standalone)').matches;
+}
+if (isIOS() && !isInStandaloneMode() && !localStorage.getItem('install_banner_dismissed')) {
+  document.getElementById('install-banner').classList.add('show');
+}
+document.getElementById('install-close').addEventListener('click', () => {
+  document.getElementById('install-banner').classList.remove('show');
+  localStorage.setItem('install_banner_dismissed', '1');
+});
+
+// ══════════════════════════════════════════════
+//  초기화
+// ══════════════════════════════════════════════
+updateSlider();
+updateProgress();
+renderHome();
+</script>
+</body>
+</html>
